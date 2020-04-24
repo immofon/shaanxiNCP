@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -253,11 +254,18 @@ func Try(fn func()) (ok bool) {
 	return true
 }
 
-type State struct {
-	Links []Link `json:"links"`
+type RelationshipEage struct {
+	Relation string
+	Owner    string
+	Target   string
+}
 
+type State struct {
+	Links    []Link            `json:"links"`
 	Contents map[string]string `json:"contents"` // key: links
-	Pages    map[string]Page   `json:"pages"`    // key: links
+
+	Pages            map[string]Page `json:"pages"` // key: links
+	RawRelationships []RelationshipEage
 }
 
 func (s State) HadLink(link Link) bool {
@@ -281,6 +289,30 @@ func (s *State) Init() {
 		s.Pages = make(map[string]Page)
 	}
 
+	// relationship.mcv to state.RawRelationships
+	s.RawRelationships = make([]RelationshipEage, 0, 100)
+	data, err := ioutil.ReadFile("./relationship.mcv")
+	if err == nil {
+		lines := strings.Split(string(data), "\n")
+		re := regexp.MustCompile(`\[(.*)\]([0-9]{4}-[0-9]{2}-[0-9]{2}:[0-9]+)->([0-9]{4}-[0-9]{2}-[0-9]{2}:[0-9]+)`)
+		for lineno, line := range lines {
+			if len(line) == 0 {
+				continue
+			}
+
+			submatch := re.FindStringSubmatch(line)
+			if len(submatch) != 4 {
+				log.Print("error: relationship.mcv:", lineno+1, "\t", line)
+				continue
+			}
+
+			s.RawRelationships = append(s.RawRelationships, RelationshipEage{
+				Relation: submatch[1],
+				Owner:    submatch[2],
+				Target:   submatch[3],
+			})
+		}
+	}
 }
 
 func stage_get_links(state *State) {
@@ -352,8 +384,15 @@ func main() {
 				}
 			}
 		}
+
+		involvedID := make(map[string]bool)
+		for _, r := range state.RawRelationships {
+			involvedID[r.Owner] = true
+			involvedID[r.Target] = true
+		}
 		fmt.Println("patients number:", count)
 		fmt.Println("has ID:", hasID)
+		fmt.Println("relationship involved:", len(involvedID))
 	case "patient":
 		patients := make([]Patient, 0, 300)
 		for _, page := range state.Pages {
