@@ -366,6 +366,8 @@ func main() {
 			return PatientIDLessThan(patients[i].ID, patients[j].ID)
 		})
 
+		mdBuf := bytes.NewBuffer(nil)
+
 		fmt.Println("#id,address,age,gender,live_address,treatment_address")
 		for _, p := range patients {
 			p.LiveAddress = strings.Replace(p.LiveAddress, "陕西省", "", -1)
@@ -385,6 +387,8 @@ func main() {
 			}
 
 			fmt.Printf("%v,%v,%v,%v,%v,%v\n", p.ID, addresses[0], p.Age, p.Gender, p.LiveAddress, p.Treatment)
+			fmt.Fprintf(mdBuf, "`%v`\n\n `%v` `%v` `%v`\n", p.ID, p.Gender, p.Age, addresses[0])
+			fmt.Fprintf(mdBuf, ">%v\n\n", p.Detial)
 		}
 
 		data, err := json.MarshalIndent(patients, "", "  ")
@@ -393,6 +397,7 @@ func main() {
 		}
 
 		ioutil.WriteFile("./patient.json", data, 0600)
+		ioutil.WriteFile("./patient.md", mdBuf.Bytes(), 0600)
 	case "unprocess":
 		keys := []string{"新冠", "新型冠状", "境外输入"}
 		for _, page := range state.Pages {
@@ -402,7 +407,9 @@ func main() {
 		NEXT_PAGE:
 			for _, key := range keys {
 				if strings.Contains(page.RawContent, key) {
-					PrintJSON(page)
+					fmt.Printf("#### `%v` [%v](%v)\n", page.Date, page.Title, page.URL)
+					content := strings.Replace(page.RawContent, "。", "。\n", -1)
+					fmt.Println(content)
 					break NEXT_PAGE
 				}
 			}
